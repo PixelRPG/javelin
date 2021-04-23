@@ -2,8 +2,8 @@ import { createEffect } from "../../effect"
 
 export const timer = createEffect(() => {
   let state = 0
-  let timer: NodeJS.Timeout
-  return (duration: number, invalidate: boolean = false) => {
+  let timer: ReturnType<typeof setTimeout>
+  return (duration: number, invalidate = false) => {
     if (invalidate) {
       state = 0
       clearTimeout(timer)
