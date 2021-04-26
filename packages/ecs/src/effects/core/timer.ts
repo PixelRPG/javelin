@@ -3,7 +3,7 @@ import { createEffect } from "../../effect"
 export const timer = createEffect(() => {
   let state = 0
   let timer: ReturnType<typeof setTimeout>
-  return (duration: number, invalidate = false) => {
+  return (duration: number, invalidate?: boolean) => {
     if (invalidate) {
       state = 0
       clearTimeout(timer)

@@ -7,7 +7,7 @@
     "noImplicitAny": true,
     "moduleResolution": "node",
     "strictNullChecks": true,
-    "sourceMap": true,
+    "inlineSourceMap": true,
     "declaration": true,
     "declarationMap": true,
     "skipLibCheck": true
