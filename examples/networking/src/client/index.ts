@@ -3,16 +3,12 @@ import { createMessageHandler, JavelinMessage } from "@javelin/net"
 import { decode } from "@msgpack/msgpack"
 import { Client } from "@web-udp/client"
 import { ConnectionOptions } from "@web-udp/client/lib/provider"
-import { Color, Position } from "../common/components"
 import { ConnectionType } from "../common/types"
-import { RenderTransform } from "./components/position_buffer"
-import { app, framerate } from "./graphics"
+import { init, app, framerate } from "./graphics"
 import { interpolate, render } from "./systems"
 import { uuidv4 } from "./uuid"
+import { ready } from "./ready";
 
-const udp = new Client({
-  url: `ws://${window.location.hostname}:8000`,
-})
 const messageHandler = createMessageHandler()
 const world = createWorld({
   systems: [messageHandler.system, interpolate, render],
@@ -74,6 +70,12 @@ function logDataTransferRate(arrayBuffer: ArrayBuffer) {
 }
 
 async function main() {
+  init();
+
+  const udp = new Client({
+    url: `ws://${window.location.hostname}:8000`,
+  })
+
   const connectionReliable = await udp.connect(reliableOptions)
   const connectionUnreliable = await udp.connect(unreliableOptions)
 
@@ -91,4 +93,5 @@ async function main() {
   loop()
 }
 
-main()
+
+ready(main);

@@ -10,28 +10,30 @@ export const framerate = new Text("0", {
   fontSize: 24,
   fill: 0xffffff,
 })
-
-framerate.x = 0
-
-const stage = document.createElement("div")
-
-stage.setAttribute("id", "render")
-stage.appendChild(app.view)
-
-document.body.appendChild(stage)
-
-app.stage.addChild(graphics)
-app.stage.addChild(framerate)
-
 let previous = Date.now()
 let elapsed = 0
 let transferred = 0
+let bandwidth: HTMLDivElement;
 
-const bandwidth = document.createElement("div")
+export const init = () => {
+  framerate.x = 0
 
-bandwidth.style.textAlign = "center"
-
-document.body.appendChild(bandwidth)
+  const stage = document.createElement("div")
+  
+  stage.setAttribute("id", "render")
+  stage.appendChild(app.view)
+  
+  document.body.appendChild(stage)
+  
+  app.stage.addChild(graphics)
+  app.stage.addChild(framerate)
+  
+  const bandwidth = document.createElement("div")
+  
+  bandwidth.style.textAlign = "center"
+  
+  document.body.appendChild(bandwidth)
+}
 
 export function updateBytesTransferred(bytes: number) {
   const now = Date.now()

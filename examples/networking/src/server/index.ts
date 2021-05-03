@@ -11,6 +11,7 @@ import { cycleColor, jump, physics } from "./systems"
 import { Client, ConnectionMetadata } from "./types"
 
 const PORT = 8000
+const HOST = "0.0.0.0"
 const TICK_RATE = 60
 
 const server = createServer()
@@ -116,4 +117,5 @@ for (let i = 0; i < 100; i++) {
   createJunk(world)
 }
 
-server.listen(PORT)
+server.listen(PORT, HOST)
+console.info(`Server listen on ws://${HOST}:${PORT}`);

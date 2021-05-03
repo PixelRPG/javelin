@@ -21,7 +21,7 @@
   ],
   "gitHead": "084d65218a12efbb32ea2b22e0f8e1812acb7d7e",
   "devDependencies": {
-    "@types/node": "^14.14.41",
+    "@types/node": "^15.0.1",
     "typescript": "^4.2.4"
   }
 }

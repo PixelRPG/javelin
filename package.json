@@ -9,12 +9,12 @@
     "examples/*"
   ],
   "dependencies": {
-    "@types/jest": "^26.0.20",
-    "@types/node": "^14.14.41",
+    "@types/jest": "^26.0.23",
+    "@types/node": "^15.0.1",
     "jest": "^26.6.3",
     "lerna": "^4.0.0",
-    "ts-jest": "^26.5.2",
-    "typescript": "^4.1.5"
+    "ts-jest": "^26.5.5",
+    "typescript": "^4.2.4"
   },
   "scripts": {
     "docs": "yarn docs:assets && cd ./docs-src && ./zola serve",
