@@ -19,7 +19,7 @@
     "@javelin/ecs": "0.22.0",
     "@javelin/hrtime-loop": "0.22.0",
     "@javelin/net": "0.22.0",
-    "@msgpack/msgpack": "^2.6.0",
+    "@msgpack/msgpack": "^2.6.3",
     "@web-udp/client": "^4.2.1",
     "@web-udp/server": "^4.2.1",
     "pixi.js": "^6.0.2"
