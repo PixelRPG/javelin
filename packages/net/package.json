@@ -5,12 +5,14 @@
   "license": "MIT",
   "devDependencies": {
     "@javelin/ecs": "0.22.0",
+    "rimraf": "^3.0.2",
     "typescript": "^4.2.4"
   },
   "peerDependencies": {
     "@javelin/ecs": ">=0.0.1"
   },
   "scripts": {
+    "clear": "rimraf dist",
     "build": "tsc",
     "prepare": "yarn build"
   },
