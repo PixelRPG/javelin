@@ -42,7 +42,7 @@ export function createEffect<S = unknown, A extends any[] = []>(
 
   let currentWorld: number
   let currentSystem: number
-  let cellCount: number = -1
+  let cellCount = -1
 
   return function effect(...args: A) {
     currentWorld = globals.__CURRENT_WORLD__
@@ -55,9 +55,8 @@ export function createEffect<S = unknown, A extends any[] = []>(
     let currentWorldSystemEffectData = systemEffectDataByWorldId[currentWorld]
 
     if (systemEffectDataByWorldId[currentWorld] === undefined) {
-      currentWorldSystemEffectData = systemEffectDataByWorldId[
-        currentWorld
-      ] = []
+      currentWorldSystemEffectData = systemEffectDataByWorldId[currentWorld] =
+        []
     }
 
     let currentSystemEffect = currentWorldSystemEffectData[currentSystem]
@@ -78,7 +77,7 @@ export function createEffect<S = unknown, A extends any[] = []>(
       previousSystem !== undefined &&
       (previousTick !== currentTick || previousSystem !== currentSystem)
     ) {
-      let previousSystemEffectData =
+      const previousSystemEffectData =
         currentWorldSystemEffectData[previousSystem]
 
       if (

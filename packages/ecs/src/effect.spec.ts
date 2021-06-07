@@ -2,8 +2,11 @@ import { globals } from "./internal/globals"
 import { World } from "./world"
 import { createEffect } from "./effect"
 
+jest.setTimeout(100)
+
 function flushPromises() {
-  return new Promise(resolve => setImmediate(resolve))
+  const scheduler = window.setImmediate || process.nextTick || window.setTimeout;
+  return new Promise<void>(resolve => scheduler(resolve))
 }
 
 describe("createEffect", () => {
@@ -79,19 +82,17 @@ describe("createEffect", () => {
   })
 
   it("updates state with resolved promise value", async () => {
-    jest.useFakeTimers()
     const callback = jest.fn(() => Promise.resolve("foo"))
     const effect = createEffect(() => callback)
 
     effect()
-    await flushPromises()
+    await Promise.resolve()
     reset(1)
 
     expect(effect()).toBe("foo")
   })
 
   it("awaits promises before next callback execution", async () => {
-    jest.useFakeTimers()
 
     const callback = jest.fn(() => Promise.resolve())
     const effect = createEffect(() => callback)

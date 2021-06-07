@@ -3,7 +3,8 @@ import { request } from "./request"
 jest.mock("../../effect")
 
 function flushPromises() {
-  return new Promise(resolve => setImmediate(resolve))
+  const scheduler = window.setImmediate || process.nextTick || window.setTimeout;
+  return new Promise(resolve => scheduler(resolve))
 }
 
 window.AbortController.prototype.abort = jest.fn(

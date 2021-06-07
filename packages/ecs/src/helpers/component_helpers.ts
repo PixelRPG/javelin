@@ -16,14 +16,14 @@ import {
 
 type CreateComponentTypeOptions<
   S extends Schema,
-  I extends ComponentInitializer<S>
+  I extends ComponentInitializer<S>,
 > = Pick<ComponentType<S, I>, "type" | "initialize"> & {
   schema?: S
 }
 
 export function createComponentType<
-  S extends Schema = {},
-  I extends ComponentInitializer<S> = ComponentInitializer<S>
+  S extends Schema = Record<string, never>,
+  I extends ComponentInitializer<S> = ComponentInitializer<S>,
 >(options: CreateComponentTypeOptions<S, I>): ComponentType<S, I> {
   return {
     ...options,
@@ -37,9 +37,13 @@ export function createComponentBase(
   return Object.defineProperties(
     {},
     {
-      _tid: { value: componentType.type, writable: false, enumerable: true },
+      _tid: {
+        value: componentType.type,
+        writable: false,
+        enumerable: true,
+      },
     },
-  )
+  ) as ComponentBase
 }
 
 export type SerializedComponentType<C extends ComponentType = ComponentType> = {

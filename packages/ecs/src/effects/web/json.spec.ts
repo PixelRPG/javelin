@@ -6,7 +6,8 @@ jest.mock("../../effect")
 jest.mock("./request")
 
 function flushPromises() {
-  return new Promise(resolve => setImmediate(resolve))
+  const scheduler = window.setImmediate || process.nextTick || window.setTimeout;
+  return new Promise(resolve => scheduler(resolve))
 }
 
 describe("json", () => {
