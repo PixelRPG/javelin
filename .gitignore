@@ -108,12 +108,15 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# yarn v2
-
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.pnp.*
-
 .DS_Store
 zola
+
+# Yarn not using Zero-Installs see https://next.yarnpkg.com/advanced/qa#which-files-should-be-gitignored
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+# Ignore yarn lock to use this as a submodule in other yarn 2 workspaces
+yarn.lock
