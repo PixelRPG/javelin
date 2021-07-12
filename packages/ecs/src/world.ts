@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
   Component,
   ComponentInitializerArgs,
   ComponentOf,
   ComponentType,
 } from "./component"
-import { Entity } from "./entity"
 import {
   createComponentPool,
   serializeComponentType,
@@ -257,7 +257,7 @@ export type WorldState<T = unknown> = {
 
 function getInitialWorldState<T>() {
   return {
-    currentTickData: (null as unknown) as T,
+    currentTickData: null as unknown as T,
     currentTick: 0,
     currentSystem: 0,
   }
@@ -269,7 +269,7 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
   const worldOps: WorldOp[] = []
   const worldOpsPrevious: WorldOp[] = []
   const worldOpPool = createStackPool<WorldOp>(
-    () => ([] as any) as WorldOp,
+    () => [] as any as WorldOp,
     op => {
       mutableEmpty(op)
       return op
@@ -287,7 +287,7 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
 
   let state: WorldState<T> = getInitialWorldState()
   let prevEntity = 0
-  let nextSystem = 0
+  const nextSystem = 0
 
   options.systems?.forEach(addSystem)
 
@@ -417,9 +417,8 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
     componentType: T,
     ...args: ComponentInitializerArgs<T>
   ): ComponentOf<T> {
-    const componentTypeHasBeenRegistered = componentTypes.includes(
-      componentType,
-    )
+    const componentTypeHasBeenRegistered =
+      componentTypes.includes(componentType)
 
     if (!componentTypeHasBeenRegistered) {
       registerComponentType(componentType)
@@ -527,9 +526,8 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
     }
 
     if (options.snapshot) {
-      const snapshotComponentTypeWithTypeId = options.snapshot.componentTypes.find(
-        s => s.type === componentType.type,
-      )
+      const snapshotComponentTypeWithTypeId =
+        options.snapshot.componentTypes.find(s => s.type === componentType.type)
 
       if (
         snapshotComponentTypeWithTypeId &&
@@ -636,7 +634,7 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
     destroyed,
   }
 
-  let id = (world.id = globals.__WORLDS__.push(world) - 1)
+  const id = (world.id = globals.__WORLDS__.push(world) - 1)
 
   return world
 }
