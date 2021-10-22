@@ -27,8 +27,8 @@ module.exports = {
     path: path.resolve(__dirname, "dist"),
   },
   devServer: {
-    disableHostCheck: true,
-    contentBase: path.resolve(__dirname, "dist"),
+    // disableHostCheck: true,
+    static: path.resolve(__dirname, "dist"),
     port: 9000,
   },
 }

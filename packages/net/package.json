@@ -6,7 +6,7 @@
   "devDependencies": {
     "@javelin/ecs": "0.22.0",
     "rimraf": "^3.0.2",
-    "typescript": "^4.3.5"
+    "typescript": "^4.4.4"
   },
   "peerDependencies": {
     "@javelin/ecs": ">=0.0.1"
