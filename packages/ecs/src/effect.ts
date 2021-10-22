@@ -1,56 +1,129 @@
-import { globals } from "./internal/globals"
+import { UNSAFE_internals } from "./internal"
 import { World } from "./world"
 
-export type EffectApi<S, A extends any[]> = (
-  ...args: A
-) => UnwrappedEffectState<S>
-export type EffectExecutor<S, A extends any[]> = (...args: A) => S
-export type EffectFactory<S, A extends any[]> = (
-  world: World,
-) => EffectExecutor<S, A>
-export type EffectOptions = { throw?: boolean; global?: boolean }
+/**
+ * The effect executor is a function type that captures the return value and
+ * an arbitrary list of arguments.
+ */
+export type EffectExecutor<$Return, $Args extends unknown[]> = (
+  ...args: $Args
+) => $Return
 
-type UnwrappedEffectState<S> = S extends Promise<infer PS> ? PS | null : S
+/**
+ * The effect's API is the contract that the effect and system operate under.
+ * It extends the interface of the effect executor by also unwrapping resolved
+ * promise values.
+ */
+export type EffectApi<$Return, $Args extends unknown[]> = EffectExecutor<
+  UnwrappedEffectState<$Return>,
+  $Args
+>
 
-type CellEffectData<S, A extends any[]> = {
-  executor: EffectExecutor<S, A>
+/**
+ * An effect factory is a function that creates an effect. It is executed for
+ * each instance of an effect in a system, unless the effect is configured to
+ * be `shared`, in which case it is executed only once during the lifetime of
+ * the application. It accepts a world instance as its only parameter and
+ * returns an effect executor. The executor can utilize the factory closure to
+ * implement local state that persists between calls.
+ * @example <caption>local state</caption>
+ * const factory: EffectFactory<number> = () => {
+ *   let i = 0;
+ *   return () => i++
+ * }
+ */
+export type EffectFactory<
+  $Return,
+  $Args extends unknown[] = [],
+  T = unknown,
+> = (world: World<T>) => EffectExecutor<$Return, $Args>
+
+export type EffectOptions = {
+  /**
+   * Limit this effect to a single instance that will be executed a maximum of
+   * once per tick and share its state across all consumers.
+   * @example
+   * const useObject = createEffect(() => () => ({}), { shared: true })
+   * // in a system:
+   * assert(useObject() === useObject())
+   */
+  shared?: boolean
+}
+
+type UnwrappedEffectState<$Return> = $Return extends Promise<infer $Resolve>
+  ? $Resolve | null
+  : $Return
+
+type CellEffectData<$Return, $Args extends unknown[]> = {
+  executor: EffectExecutor<$Return, $Args>
   lockAsync: boolean
-  lockGlobal: boolean
-  lockGlobalTick: number
-  state: UnwrappedEffectState<S>
+  lockShare: boolean
+  lockShareTick: number | null
+  state: UnwrappedEffectState<$Return>
 }
 
-type SystemEffectData<S = any, A extends any[] = []> = {
+type SystemEffectData<$Return = unknown, $Args extends unknown[] = []> = {
   cellCount: number
-  cells: CellEffectData<S, A>[]
+  cells: CellEffectData<$Return, $Args>[]
 }
 
-function isPromise<T = unknown>(object: unknown): object is Promise<T> {
+function isPromise<$Resolve = unknown>(
+  object: unknown,
+): object is Promise<$Resolve> {
   return typeof object === "object" && object !== null && "then" in object
 }
 
-export function createEffect<S = unknown, A extends any[] = []>(
-  factory: EffectFactory<S, A>,
-  options: EffectOptions = { throw: false, global: false },
-): EffectApi<S, A> {
-  const { global } = options
+/**
+ * Create an effect by specifying an effect factory and optional configuration
+ * options.
+ *
+ * An effect is a stateful function that is used to implement logic in systems
+ * without use of singleton components or global state. Each function has
+ * access to a closure (the factory) that is used to implement local variables
+ * that persist between steps of the world. Effects are called just like normal
+ * functions within systems. Javelin automatically resolves the correct closure
+ * based on the order the effect is called in within a system.
+ *
+ * @example
+ * const useCounter = createEffect(() => {
+ *   // closure
+ *   let i = 0
+ *   return (base: number) => base + i++
+ * })
+ * // in a system:
+ * // (step 0)
+ * const a = useCounter(0)  // 0
+ * const b = useCounter(10) // 10
+ * // (step 1)
+ * const a = useCounter(0)  // 1
+ * const b = useCounter(10) // 11
+ */
+export function createEffect<
+  $Return = unknown,
+  $Args extends unknown[] = [],
+  $Tick extends unknown = void,
+>(
+  factory: EffectFactory<$Return, $Args, $Tick>,
+  options: EffectOptions = { shared: false },
+): EffectApi<$Return, $Args> {
+  const { shared: global } = options
   const systemEffectDataByWorldId: SystemEffectData[][] = []
 
-  let previousTick: number
+  let previousStep: number
   let previousWorld: number
   let previousSystem: number
 
   let currentWorld: number
-  let currentSystem: number
-  let cellCount = -1
+  let latestSystemId: number
+  let cellCount: number = -1
 
-  return function effect(...args: A) {
-    currentWorld = globals.__CURRENT_WORLD__
+  return function effect(...args: $Args) {
+    currentWorld = UNSAFE_internals.currentWorldId
 
-    const world = globals.__WORLDS__[currentWorld]
-    const currentTick = world.state.currentTick
+    const world = UNSAFE_internals.worlds[currentWorld] as World<$Tick>
+    const step = world.latestTick
 
-    currentSystem = global ? 0 : world.state.currentSystem
+    latestSystemId = global ? 0 : world.latestSystemId
 
     let currentWorldSystemEffectData = systemEffectDataByWorldId[currentWorld]
 
@@ -59,10 +132,10 @@ export function createEffect<S = unknown, A extends any[] = []>(
         []
     }
 
-    let currentSystemEffect = currentWorldSystemEffectData[currentSystem]
+    let currentSystemEffect = currentWorldSystemEffectData[latestSystemId]
 
     if (currentSystemEffect === undefined) {
-      currentSystemEffect = currentWorldSystemEffectData[currentSystem] = {
+      currentSystemEffect = currentWorldSystemEffectData[latestSystemId] = {
         cells: [],
         cellCount: -1,
       }
@@ -75,7 +148,7 @@ export function createEffect<S = unknown, A extends any[] = []>(
       cellCount = 0
     } else if (
       previousSystem !== undefined &&
-      (previousTick !== currentTick || previousSystem !== currentSystem)
+      (previousStep !== step || previousSystem !== latestSystemId)
     ) {
       const previousSystemEffectData =
         currentWorldSystemEffectData[previousSystem]
@@ -87,7 +160,7 @@ export function createEffect<S = unknown, A extends any[] = []>(
         throw new Error(
           `Failed to execute effect: encountered too ${
             previousSystemEffectData.cellCount > cellCount ? "few" : "many"
-          } effects this tick`,
+          } effects this step`,
         )
       }
 
@@ -97,34 +170,37 @@ export function createEffect<S = unknown, A extends any[] = []>(
       cellCount++
     }
 
-    let cell = currentSystemEffect.cells[cellCount] as CellEffectData<S, A>
+    let cell = currentSystemEffect.cells[cellCount] as CellEffectData<
+      $Return,
+      $Args
+    >
 
     if (!cell) {
       cell = currentSystemEffect.cells[cellCount] = {
         executor: factory(world),
-        lockGlobal: false,
+        lockShare: false,
         lockAsync: false,
-        lockGlobalTick: -1,
-        state: null as UnwrappedEffectState<S>,
+        lockShareTick: null,
+        state: null as UnwrappedEffectState<$Return>,
       }
     }
 
     if (global) {
-      if (cell.lockGlobalTick !== world.state.currentTick) {
-        cell.lockGlobal = false
-        cell.lockGlobalTick = world.state.currentTick
+      if (cell.lockShareTick !== world.latestTick) {
+        cell.lockShare = false
+        cell.lockShareTick = world.latestTick
       } else {
-        cell.lockGlobal = true
+        cell.lockShare = true
       }
     }
 
-    if (cell.lockGlobal || cell.lockAsync) {
+    if (cell.lockShare || cell.lockAsync) {
       return cell.state
     }
 
     const result = cell.executor(...args)
 
-    if (isPromise<UnwrappedEffectState<S>>(result)) {
+    if (isPromise<UnwrappedEffectState<$Return>>(result)) {
       cell.lockAsync = true
       result
         .then(result => (cell.state = result))
@@ -133,12 +209,12 @@ export function createEffect<S = unknown, A extends any[] = []>(
         )
         .then(() => (cell.lockAsync = false))
     } else {
-      cell.state = result as UnwrappedEffectState<S>
+      cell.state = result as UnwrappedEffectState<$Return>
     }
 
-    previousTick = currentTick
+    previousStep = step
     previousWorld = currentWorld
-    previousSystem = currentSystem
+    previousSystem = latestSystemId
 
     return cell.state
   }

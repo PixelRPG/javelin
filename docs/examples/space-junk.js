@@ -112,9 +112,9 @@ const topics = {
 }
 
 const queries = {
-  wormholes: query(Transform, Wormhole, Velocity),
-  junk: query(Transform, Velocity, Junk),
-  dragging: query(Transform, Wormhole, Dragging),
+  wormholes: createQuery(Transform, Wormhole, Velocity),
+  junk: createQuery(Transform, Velocity, Junk),
+  dragging: createQuery(Transform, Wormhole, Dragging),
 }
 
 function inside(a, b, x, y, r) {
@@ -175,7 +175,7 @@ const spawnJunk = () => {
     for (let i = 0; i < 10000; i++) {
       const x = Math.random() * (canvas.width * 1.5) - 0.25 * canvas.width
       const y = Math.random() * (canvas.height * 1.5) - 0.25 * canvas.height
-      world.spawn(
+      world.create(
         world.component(Transform, x, y),
         world.component(Velocity),
         world.component(Junk),
@@ -197,23 +197,17 @@ const attract = world => {
       if (we === je) {
         return
       }
-
       const dx = wt.x - jt.x
       const dy = wt.y - jt.y
       const len = Math.sqrt(dx * dx + dy * dy)
-
       if (len <= w.r) {
         j.influenced = true
-
         if (len < w.r / 10) {
           const jw = world.tryGet(je, Wormhole)
-
           if (jw) {
             jw.obliterated = true
           }
-
           w.r += jw?.r || 0.1
-
           world.destroy(je)
         } else {
           jv.x += dx / len / 200
@@ -353,7 +347,7 @@ function spawnWormhole(
   y = Math.random() * canvas.height,
   r = Math.max(10, Math.random() * 60),
 ) {
-  world.spawn(
+  world.create(
     world.component(Transform, x, y),
     world.component(Wormhole, r),
     world.component(Velocity),
@@ -364,7 +358,7 @@ function spawnWormhole(
 spawnWormhole()
 
 function loop() {
-  world.tick()
+  world.step()
   requestAnimationFrame(loop)
 }
 

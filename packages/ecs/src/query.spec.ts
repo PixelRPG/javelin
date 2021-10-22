@@ -1,57 +1,53 @@
 import { Archetype, createArchetype } from "./archetype"
-import { Component } from "./component"
-import { createComponentType } from "./helpers"
-import { globals } from "./internal/globals"
-import { query } from "./query"
-import { createWorld } from "./world"
+import { $type, Component, registerSchema } from "./component"
+import { UNSAFE_internals } from "./internal"
+import { createQuery } from "./query"
+import { createWorld, World } from "./world"
 
 jest.mock("./archetype")
 jest.mock("./world")
 
-describe("query", () => {
-  const A = createComponentType({ type: 0, schema: {} })
-  const B = createComponentType({ type: 1, schema: {} })
+describe("createQuery", () => {
+  const A = {}
+  const B = {}
 
-  it("initializes with sorted signature", () => {
-    const q = query(B, A)
+  registerSchema(A, 0)
+  registerSchema(B, 1)
 
-    expect(q.signature).toEqual([0, 1])
-  })
   it("queries collections of components", () => {
     const world = createWorld()
     const table = [
       [
-        { _tid: 0, foo: 4 },
-        { _tid: 0, foo: 5 },
-        { _tid: 0, foo: 6 },
+        { [$type]: 0, foo: 4 },
+        { [$type]: 0, foo: 5 },
+        { [$type]: 0, foo: 6 },
       ],
       [
-        { _tid: 1, foo: 1 },
-        { _tid: 1, foo: 2 },
-        { _tid: 1, foo: 3 },
+        { [$type]: 1, foo: 1 },
+        { [$type]: 1, foo: 2 },
+        { [$type]: 1, foo: 3 },
       ],
     ]
 
     ;(world.storage.archetypes as Archetype[]) = [
       {
-        ...createArchetype({ signature: [0] }),
-        signature: [0, 1],
-        signatureInverse: [0, 1],
+        ...createArchetype({ type: [0] }),
+        type: [0, 1],
+        typeInverse: [0, 1],
         entities: [1, 2, 0],
         indices: [2, 0, 1],
         table,
       } as Archetype,
     ]
+    ;(UNSAFE_internals as { worlds: World[] }).worlds = [world]
+    UNSAFE_internals.currentWorldId = 0
 
-    globals.__WORLDS__ = [world]
-    globals.__CURRENT_WORLD__ = 0
-
-    const q = query(A, B)
+    const q = createQuery(A, B)
 
     let resultsA: Component[] = []
     let resultsB: Component[] = []
 
-    q.forEach((e, [a, b]) => {
+    q((e, [a, b]) => {
       resultsA.push(a)
       resultsB.push(b)
     })

@@ -1,196 +1,36 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { assert, mutableEmpty, Schema } from "@javelin/core"
 import {
+  $pool,
   Component,
-  ComponentInitializerArgs,
   ComponentOf,
-  ComponentType,
+  getSchemaId,
+  registerSchema,
 } from "./component"
-import {
-  createComponentPool,
-  serializeComponentType,
-  SerializedComponentType,
-} from "./helpers"
-import { globals } from "./internal/globals"
-import { createStackPool, StackPool } from "./pool"
-import { schemaEqualsSerializedSchema } from "./schema"
-import { createSignal, Signal } from "./signal"
+import { Entity } from "./entity"
+import { UNSAFE_internals } from "./internal"
 import { createStorage, Storage, StorageSnapshot } from "./storage"
 import { Topic } from "./topic"
-import { mutableEmpty } from "./util"
-import {
-  AttachOp,
-  DestroyOp,
-  DetachOp,
-  SpawnOp,
-  WorldOp,
-  WorldOpType,
-} from "./world_op"
 
-export interface World<T = any> {
-  /**
-   * The unique identifier for this world.
-   */
-  id: number
+const $systemId = Symbol("javelin_system_id")
 
-  /**
-   * Move the world forward one tick by executing all systems in order with the
-   * provided tick data.
-   *
-   * @param data Tick data
-   */
-  tick(data: T): void
+export enum DeferredOpType {
+  Create,
+  Attach,
+  Detach,
+  Destroy,
+}
 
-  /**
-   * Register a system to be executed each tick.
-   *
-   * @param system
-   */
-  addSystem(system: System<T>): void
+export type Create = [DeferredOpType.Create, number, Component[]]
+export type Attach = [DeferredOpType.Attach, number, Component[]]
+export type Detach = [DeferredOpType.Detach, number, number[]]
+export type Destroy = [DeferredOpType.Destroy, number]
 
+export type WorldOp = Create | Attach | Detach | Destroy
+export type World<$Tick = unknown> = {
   /**
-   * Remove a system.
-   *
-   * @param system
+   * Unique world identifier.
    */
-  removeSystem(system: System<T>): void
-
-  /**
-   * Register a topic to be flushed each tick.
-   *
-   * @param topic
-   */
-  addTopic(topic: Topic): void
-
-  /**
-   * Remove a topic.
-   *
-   * @param topic
-   */
-  removeTopic(topic: Topic): void
-
-  /**
-   * Create an entity with a provided component makeup.
-   *
-   * @param components The new entity's components
-   */
-  spawn(...components: ReadonlyArray<Component>): number
-
-  /**
-   * Create a component.
-   *
-   * @param componentType component type
-   * @param args component type initializer arguments
-   */
-  component<T extends ComponentType>(
-    componentType: T,
-    ...args: ComponentInitializerArgs<T>
-  ): ComponentOf<T>
-
-  /**
-   * Attach new components to an entity.
-   *
-   * @param entity Subject entity
-   * @param components Components to insert
-   */
-  attach(entity: number, ...components: ReadonlyArray<Component>): void
-
-  /**
-   * Remove existing components from an entity.
-   *
-   * @param entity Subject entity
-   * @param components Components to insert
-   */
-  detach(
-    entity: number,
-    ...components: ReadonlyArray<Component> | ComponentType[]
-  ): void
-
-  /**
-   * Destroy an entity and de-reference its components.
-   *
-   * @param entity Subject entity
-   */
-  destroy(entity: number): void
-
-  /**
-   * Retrieve a component by type for an entity. Throws an error if component is not found.
-   *
-   * @param entity
-   * @param componentType
-   */
-  get<T extends ComponentType>(entity: number, componentType: T): ComponentOf<T>
-
-  /**
-   * Retrieve a component by type for an entity, or null if a component is not found.
-   *
-   * @param entity
-   * @param componentType
-   */
-  tryGet<T extends ComponentType>(
-    entity: number,
-    componentType: T,
-  ): ComponentOf<T> | null
-
-  /**
-   * Determine if a component has a component of a specified component type.
-   * Returns true if entity has component, otherwise false.
-   *
-   * @param entity
-   * @param componentType
-   */
-  has(entity: number, componentType: ComponentType): boolean
-
-  /**
-   * Determine if a component was changed last tick.
-   *
-   * @param component Component
-   */
-  isComponentChanged(component: Component): boolean
-
-  /**
-   * Get a mutable reference to a component.
-   *
-   * @param component Subject component
-   */
-  getObserved<C extends Component>(component: C): C
-
-  /**
-   * Apply world ops to this world.
-   *
-   * @param ops WorldOps to apply
-   */
-  applyOps(ops: WorldOp[]): void
-
-  /**
-   * Apply a component patch to the component of an entity.
-   *
-   * @param entity Entity
-   * @param componentType Component type
-   * @param path Path to property
-   * @param value New value
-   */
-  patch(
-    entity: number,
-    componentType: number,
-    path: string,
-    value: unknown,
-  ): void
-
-  /**
-   * Reserve an entity identifier.
-   */
-  reserve(): number
-
-  /**
-   * Reset the world to its initial state, removing all entities, components,
-   * systems, world ops, and internal state.
-   */
-  reset(): void
-
-  /**
-   * Create a serializable snapshot of the world that can be restored later.
-   */
-  snapshot(): WorldSnapshot
+  readonly id: number
 
   /**
    * Entity-component storage.
@@ -198,204 +38,209 @@ export interface World<T = any> {
   readonly storage: Storage
 
   /**
-   * Set of WorldOps that were processed last tick.
+   * Latest step number.
    */
-  readonly ops: ReadonlyArray<WorldOp>
+  readonly latestTick: number
 
   /**
-   * Array of registered component factories.
+   * Latest step data passed to world.step().
    */
-  readonly componentTypes: ReadonlyArray<ComponentType>
+  readonly latestTickData: $Tick
 
   /**
-   * Current world state including current tick number and tick data.
+   * Id of the latest invoked system.
    */
-  readonly state: { readonly [K in keyof WorldState<T>]: WorldState<T>[K] }
+  readonly latestSystemId: number
 
   /**
-   * Signal dispatched for each attached component.
+   * Process deferred operations from previous step and execute all systems.
+   * @param data Step data
    */
-  readonly attached: Signal<number, ReadonlyArray<Component>>
+  step(data: $Tick): void
 
   /**
-   * Signal dispatched for each detached component.
+   * Register a system to be executed each step.
+   * @param system
    */
-  readonly detached: Signal<number, ReadonlyArray<Component>>
+  addSystem(system: System<$Tick>): void
 
   /**
-   * Signal dispatched for each destroyed entity.
+   * Remove a system.
+   * @param system
    */
-  readonly spawned: Signal<number>
+  removeSystem(system: System<$Tick>): void
 
   /**
-   * Signal dispatched for each destroyed entity.
+   * Register a topic to be flushed each step.
+   * @param topic
    */
-  readonly destroyed: Signal<number>
+  addTopic(topic: Topic): void
+
+  /**
+   * Remove a topic.
+   * @param topic
+   */
+  removeTopic(topic: Topic): void
+
+  /**
+   * Create an entity and optionally attach components.
+   * @param components The new entity's components
+   */
+  create(...components: ReadonlyArray<Component>): Entity
+
+  /**
+   * Attach components to an entity. Deferred until next tick.
+   * @param entity Entity
+   * @param components Components to attach to `entity`
+   */
+  attach(entity: Entity, ...components: ReadonlyArray<Component>): void
+
+  /**
+   * Attach components to an entity.
+   * @param entity Entity
+   * @param components Components to attach to `entity`
+   */
+  attachImmediate(entity: Entity, components: Component[]): void
+
+  /**
+   * Remove attached components from an entity. Deffered until next tick.
+   * @param entity Entity
+   * @param components Components to detach from `entity`
+   */
+  detach(entity: Entity, ...components: (Schema | Component | number)[]): void
+
+  /**
+   * Remove attached components from an entity.
+   * @param entity Entity
+   * @param components Components to detach from `entity`
+   */
+  detachImmediate(entity: Entity, schemaIds: number[]): void
+
+  /**
+   * Remove all components from an entity. Deferred until next tick.
+   * @param entity Entity
+   */
+  destroy(entity: Entity): void
+
+  /**
+   * Remove all components from an entity.
+   * @param entity Entity
+   */
+  destroyImmediate(entity: Entity): void
+
+  /**
+   * Find the component of an entity by type. Throws an error if component is not found.
+   * @param entity
+   * @param schema
+   */
+  get<$Tick extends Schema>(entity: Entity, schema: $Tick): ComponentOf<$Tick>
+
+  /**
+   * Find the component of an entity by type, or null if a component is not found.
+   * @param entity
+   * @param schema
+   */
+  tryGet<$Tick extends Schema>(
+    entity: Entity,
+    schema: $Tick,
+  ): ComponentOf<$Tick> | null
+
+  /**
+   * Check if an entity has a component of a specified schema.
+   * @param entity
+   * @param schema
+   */
+  has(entity: Entity, schema: Schema): boolean
+
+  /**
+   * Reset the world to its initial state, removing all entities, components,
+   * systems, topics, and deferred operations.
+   */
+  reset(): void
+
+  /**
+   * Create a serializable snapshot of the world that can be restored later.
+   */
+  createSnapshot(): WorldSnapshot
 }
 
+/**
+ * A JSON-serializable world.
+ */
 export type WorldSnapshot = {
-  componentTypes: SerializedComponentType[]
   storage: StorageSnapshot
 }
 
-export type System<T> = ((world: World<T>) => void) & {
-  __JAVELIN_SYSTEM_ID__?: number
+/**
+ * A function executed each tick. Systems are passed the world which executed
+ * them as their first and only parameter. They can call effects in their
+ * implementations.
+ */
+export type System<$Tick> = ((world: World<$Tick>) => void) & {
+  [$systemId]?: number
 }
 
-export type WorldOptions<T> = {
+export type WorldOptions<$Tick> = {
+  /**
+   * Initial number of components in a component pool. Can be overriden
+   * for a specific component type via an argument passed to `registerSchema`.
+   */
   componentPoolSize?: number
+  /**
+   * Snapshot to restore world from.
+   */
   snapshot?: WorldSnapshot
-  systems?: System<T>[]
+  /**
+   * Systems to execute each step.
+   */
+  systems?: System<$Tick>[]
+  /**
+   * Topics to flush at the end of each step.
+   */
   topics?: Topic[]
 }
 
-export type WorldState<T = unknown> = {
-  currentTick: number
-  currentTickData: T
-  currentSystem: number
-}
-
-function getInitialWorldState<T>() {
-  return {
-    currentTickData: null as unknown as T,
-    currentTick: 0,
-    currentSystem: 0,
-  }
-}
-
-export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
-  const { componentPoolSize = 1000, topics = [] } = options
-  const systems: System<T>[] = []
-  const worldOps: WorldOp[] = []
-  const worldOpsPrevious: WorldOp[] = []
-  const worldOpPool = createStackPool<WorldOp>(
-    () => [] as any as WorldOp,
-    op => {
-      mutableEmpty(op)
-      return op
-    },
-    1000,
-  )
-  const componentTypes: ComponentType[] = []
-  const componentTypePools = new Map<number, StackPool<Component>>()
-  const attached = createSignal<number, ReadonlyArray<Component>>()
-  const detached = createSignal<number, ReadonlyArray<Component>>()
-  const spawned = createSignal<number>()
-  const destroyed = createSignal<number>()
-  const destroying = new Set<number>()
+/**
+ * Create a world.
+ * @param options WorldOptions
+ * @returns World
+ */
+export function createWorld<$Tick = void>(
+  options: WorldOptions<$Tick> = {},
+): World<$Tick> {
+  const { topics = [] } = options
+  const systems: System<$Tick>[] = []
+  const deferredOps: WorldOp[] = []
+  const destroyed = new Set<number>()
   const storage = createStorage({ snapshot: options.snapshot?.storage })
 
-  let state: WorldState<T> = getInitialWorldState()
-  let prevEntity = 0
-  const nextSystem = 0
+  let entityIds = 0
+  let systemIds = 0
 
   options.systems?.forEach(addSystem)
 
-  detached.subscribe((entity, components) =>
-    components.forEach(maybeReleaseComponent),
-  )
-
-  function createWorldOp<T extends WorldOp>(...args: T): T {
-    const worldOp = worldOpPool.retain() as T
-
+  function createDeferredOp<$Tick extends WorldOp>(...args: $Tick): $Tick {
+    const deferred = [] as unknown as $Tick
     for (let i = 0; i < args.length; i++) {
-      worldOp[i] = args[i]
+      deferred[i] = args[i]
     }
-
-    return worldOp
-  }
-
-  function applySpawnOp(op: SpawnOp) {
-    const [, entity] = op
-    spawned.dispatch(entity)
-    storage.create(entity, [])
-  }
-
-  function applyAttachOp(op: AttachOp) {
-    const [, entity, components] = op
-    attached.dispatch(entity, components)
-    storage.insert(entity, components as Component[])
-  }
-
-  function applyDetachOp(op: DetachOp) {
-    const [, entity, components] = op
-    detached.dispatch(entity, components)
-    storage.remove(entity, components as Component[])
-  }
-
-  function applyDestroyOp(op: DestroyOp) {
-    const [, entity] = op
-    destroyed.dispatch(entity)
-    storage.destroy(entity)
-  }
-
-  function applyWorldOp(worldOp: WorldOp, record = true) {
-    if (record === true) {
-      worldOpsPrevious.push(worldOp)
-    }
-
-    switch (worldOp[0]) {
-      case WorldOpType.Spawn:
-        return applySpawnOp(worldOp)
-      case WorldOpType.Attach:
-        return applyAttachOp(worldOp)
-      case WorldOpType.Detach:
-        return applyDetachOp(worldOp)
-      case WorldOpType.Destroy:
-        return applyDestroyOp(worldOp)
-    }
+    return deferred
   }
 
   function maybeReleaseComponent(component: Component) {
-    const pool = componentTypePools.get(component._tid)
-
-    if (pool) {
+    const pool = UNSAFE_internals.schemaPools.get(getSchemaId(component))
+    if (pool && Reflect.get(component, $pool)) {
       pool.release(component)
     }
   }
 
-  function tick(data: T) {
-    globals.__CURRENT_WORLD__ = id
-    state.currentTickData = data
-
-    // Clear change cache
-    storage.clearMutations()
-
-    // Clear world op history
-    while (worldOpsPrevious.length > 0) {
-      worldOpPool.release(worldOpsPrevious.pop()!)
-    }
-
-    for (let i = 0; i < worldOps.length; i++) {
-      applyWorldOp(worldOps[i])
-    }
-
-    mutableEmpty(worldOps)
-
-    for (let i = 0; i < topics.length; i++) {
-      topics[i].flush()
-    }
-
-    // Execute systems
-    for (let i = 0; i < systems.length; i++) {
-      const system = systems[i]
-      world.state.currentSystem = system.__JAVELIN_SYSTEM_ID__!
-      system(world)
-    }
-
-    destroying.clear()
-
-    state.currentTick++
-  }
-
-  function addSystem(system: System<T>) {
+  function addSystem(system: System<$Tick>) {
     systems.push(system)
-    system.__JAVELIN_SYSTEM_ID__ = nextSystem
+    system[$systemId] = systemIds++
   }
 
-  function removeSystem(system: System<T>) {
+  function removeSystem(system: System<$Tick>) {
     const index = systems.indexOf(system)
-
     if (index > -1) {
       systems.splice(index, 1)
     }
@@ -407,234 +252,222 @@ export function createWorld<T>(options: WorldOptions<T> = {}): World<T> {
 
   function removeTopic(topic: Topic) {
     const index = topics.indexOf(topic)
-
     if (index > -1) {
       topics.splice(index, 1)
     }
   }
 
-  function component<T extends ComponentType>(
-    componentType: T,
-    ...args: ComponentInitializerArgs<T>
-  ): ComponentOf<T> {
-    const componentTypeHasBeenRegistered =
-      componentTypes.includes(componentType)
-
-    if (!componentTypeHasBeenRegistered) {
-      registerComponentType(componentType)
+  function create(...components: Component[]) {
+    const entity = entityIds++
+    if (components.length > 0) {
+      deferredOps.push(
+        createDeferredOp(DeferredOpType.Attach, entity, components),
+      )
     }
-
-    const pool = componentTypePools.get(componentType.type) as StackPool<
-      ComponentOf<T>
-    >
-
-    const component = pool.retain()
-
-    if (componentType.initialize) {
-      componentType.initialize(component, ...args)
-    }
-
-    return component
-  }
-
-  function spawn(...components: ReadonlyArray<Component>) {
-    const entity = prevEntity++
-
-    worldOps.push(
-      createWorldOp(WorldOpType.Spawn, entity),
-      createWorldOp(WorldOpType.Attach, entity, components),
-    )
-
     return entity
   }
 
-  function attach(entity: number, ...components: ReadonlyArray<Component>) {
-    worldOps.push(createWorldOp(WorldOpType.Attach, entity, components))
+  function attach(entity: Entity, ...components: Component[]) {
+    deferredOps.push(
+      createDeferredOp(DeferredOpType.Attach, entity, components),
+    )
+  }
+
+  function attachImmediate(entity: Entity, components: Component[]) {
+    storage.attachComponents(entity, components)
   }
 
   function detach(
-    entity: number,
-    ...components: ReadonlyArray<Component> | ComponentType[]
+    entity: Entity,
+    ...components: (Component | Schema | number)[]
   ) {
     if (components.length === 0) {
       return
     }
-
-    if ("type" in components[0]) {
-      components = (components as ComponentType[]).map(ct => get(entity, ct))
-    }
-
-    worldOps.push(
-      createWorldOp(WorldOpType.Detach, entity, components as Component[]),
+    const schemaIds = components.map(c =>
+      typeof c === "number"
+        ? c
+        : UNSAFE_internals.schemaIndex.get(c as Schema) ?? getSchemaId(c),
     )
+    deferredOps.push(createDeferredOp(DeferredOpType.Detach, entity, schemaIds))
   }
 
-  function destroy(entity: number) {
-    if (destroying.has(entity)) {
+  function detachImmediate(entity: Entity, schemaIds: number[]) {
+    const components: Component[] = []
+    for (let i = 0; i < schemaIds.length; i++) {
+      const schemaId = schemaIds[i]
+      const component = storage.getComponentBySchemaId(entity, schemaId)
+      assert(
+        component !== null,
+        `Failed to detach component: entity does not have component of type ${schemaId}`,
+      )
+      components.push(component)
+    }
+    storage.detachBySchemaId(entity, schemaIds)
+    components.forEach(maybeReleaseComponent)
+  }
+
+  function destroy(entity: Entity) {
+    if (destroyed.has(entity)) {
       return
     }
-    const components = storage.getEntityComponents(entity)
-    worldOps.push(
-      createWorldOp(WorldOpType.Detach, entity, components),
-      createWorldOp(WorldOpType.Destroy, entity),
-    )
-    destroying.add(entity)
+    deferredOps.push(createDeferredOp(DeferredOpType.Destroy, entity))
+    destroyed.add(entity)
   }
 
-  function applyOps(ops: WorldOp[]) {
-    for (let i = 0; i < ops.length; i++) {
-      applyWorldOp(ops[i], false)
-    }
+  function destroyImmediate(entity: Entity) {
+    storage.clearComponents(entity)
   }
 
-  function has(entity: number, componentType: ComponentType) {
-    return storage.hasComponent(entity, componentType)
+  function has(entity: Entity, schema: Schema) {
+    registerSchema(schema)
+    return storage.hasComponentOfSchema(entity, schema)
   }
 
-  function get<T extends ComponentType>(
-    entity: number,
-    componentType: T,
-  ): ComponentOf<T> {
-    const component = storage.findComponent(entity, componentType)
+  function get<$Tick extends Schema>(
+    entity: Entity,
+    schema: $Tick,
+  ): ComponentOf<$Tick> {
+    registerSchema(schema)
+    const component = storage.getComponentBySchema(entity, schema)
 
     if (component === null) {
-      throw new Error("Component not found")
+      throw new Error("Failed to get component: entity does not have component")
     }
 
     return component
   }
 
-  function tryGet<T extends ComponentType>(
-    entity: number,
-    componentType: T,
-  ): ComponentOf<T> | null {
-    return storage.findComponent(entity, componentType)
-  }
-
-  function registerComponentType(
-    componentType: ComponentType,
-    poolSize = componentPoolSize,
-  ) {
-    const registeredComponentTypeWithTypeId = componentTypes.find(
-      ({ type }) => componentType.type === type,
-    )
-
-    if (registeredComponentTypeWithTypeId) {
-      throw new Error(
-        `Failed to register component type: a componentType with same id is already registered`,
-      )
+  function tryGet<$Tick extends Schema>(
+    entity: Entity,
+    schema: $Tick,
+  ): ComponentOf<$Tick> | null {
+    try {
+      registerSchema(schema)
+      return storage.getComponentBySchema(entity, schema)
+    } catch (error) {
+      return null
     }
-
-    if (options.snapshot) {
-      const snapshotComponentTypeWithTypeId =
-        options.snapshot.componentTypes.find(s => s.type === componentType.type)
-
-      if (
-        snapshotComponentTypeWithTypeId &&
-        !schemaEqualsSerializedSchema(
-          componentType.schema,
-          snapshotComponentTypeWithTypeId.schema,
-        )
-      ) {
-        throw new Error(
-          `Failed to register component type: component type schema does not match world snapshot`,
-        )
-      }
-    }
-
-    componentTypes.push(componentType)
-    componentTypePools.set(
-      componentType.type,
-      createComponentPool(componentType, poolSize),
-    )
-  }
-
-  function reserve() {
-    return ++prevEntity
   }
 
   function reset() {
-    mutableEmpty(worldOps)
-    mutableEmpty(worldOpsPrevious)
-    mutableEmpty(componentTypes)
+    destroyed.clear()
+    // clear deferred ops
+    mutableEmpty(deferredOps)
+    // remove all systems
     mutableEmpty(systems)
-
-    componentTypePools.clear()
-    destroying.clear()
-
-    state = getInitialWorldState()
-
-    prevEntity = 0
-
-    while (worldOps.length > 0) {
-      worldOpPool.release(worldOps.pop()!)
-    }
-
-    while (worldOpsPrevious.length > 0) {
-      worldOpPool.release(worldOpsPrevious.pop()!)
-    }
-
+    // remove all topics
+    topics.forEach(topic => topic.clear())
+    mutableEmpty(topics)
+    // reset entity id counter
+    entityIds = 0
+    // reset step data
+    world.latestTick = -1
+    world.latestTickData = null as unknown as $Tick
+    world.latestSystemId = -1
     // release components
     for (let i = 0; i < storage.archetypes.length; i++) {
       const archetype = storage.archetypes[i]
-
-      for (let j = 0; j < archetype.signature.length; j++) {
+      for (let j = 0; j < archetype.type.length; j++) {
         const column = archetype.table[j]
-        const componentPool = componentTypePools.get(archetype.signature[j])
-
+        const componentPool = UNSAFE_internals.schemaPools.get(
+          archetype.type[j],
+        )
         for (let k = 0; k < column.length; k++) {
           const component = column[k]
           componentPool?.release(component!)
         }
       }
     }
-
+    // reset entity-component storage
     storage.clear()
   }
 
-  function snapshot(): WorldSnapshot {
+  function createSnapshot(): WorldSnapshot {
     return {
-      componentTypes: componentTypes.map(serializeComponentType),
-      storage: storage.snapshot(),
+      storage: storage.createSnapshot(),
     }
   }
 
-  const { getObservedComponent, isComponentChanged, patch } = storage
-
-  const world = {
-    addSystem,
-    addTopic,
-    applyOps,
-    attach,
-    component,
-    componentTypes,
-    destroy,
-    detach,
-    get,
-    getObserved: getObservedComponent,
-    has,
-    id: -1,
-    isComponentChanged,
-    ops: worldOpsPrevious,
-    patch,
-    removeSystem,
-    removeTopic,
-    reserve,
-    reset,
-    snapshot,
-    spawn,
-    state,
-    storage,
-    tick,
-    tryGet,
-    // signals
-    attached,
-    detached,
-    spawned,
-    destroyed,
+  function applyAttachOp(op: Attach) {
+    const [, entity, components] = op
+    attachImmediate(entity, components)
   }
 
-  const id = (world.id = globals.__WORLDS__.push(world) - 1)
+  function applyDetachOp(op: Detach) {
+    const [, entity, schemaIds] = op
+    detachImmediate(entity, schemaIds)
+  }
+
+  function applyDestroyOp(op: Destroy) {
+    const [, entity] = op
+    destroyImmediate(entity)
+  }
+
+  function applyDeferredOp(deferred: WorldOp) {
+    switch (deferred[0]) {
+      case DeferredOpType.Attach:
+        applyAttachOp(deferred)
+        break
+      case DeferredOpType.Detach:
+        applyDetachOp(deferred)
+        break
+      case DeferredOpType.Destroy:
+        applyDestroyOp(deferred)
+        break
+    }
+  }
+
+  function step(data: $Tick) {
+    let prevWorld = UNSAFE_internals.currentWorldId
+    UNSAFE_internals.currentWorldId = id
+    world.latestTickData = data
+    for (let i = 0; i < deferredOps.length; i++) {
+      applyDeferredOp(deferredOps[i])
+    }
+    mutableEmpty(deferredOps)
+    // flush topics
+    for (let i = 0; i < topics.length; i++) {
+      topics[i].flush()
+    }
+    // execute systems
+    for (let i = 0; i < systems.length; i++) {
+      const system = systems[i]
+      world.latestSystemId = system[$systemId]!
+      system(world)
+    }
+    destroyed.clear()
+    world.latestTick++
+    UNSAFE_internals.currentWorldId = prevWorld
+  }
+
+  const id = UNSAFE_internals.worldIds++
+  const world = {
+    id,
+    storage,
+    latestTick: -1,
+    latestTickData: null as unknown as $Tick,
+    latestSystemId: -1,
+    attach,
+    attachImmediate,
+    addSystem,
+    addTopic,
+    create,
+    destroy,
+    destroyImmediate,
+    get,
+    createSnapshot,
+    has,
+    detach,
+    detachImmediate,
+    removeSystem,
+    removeTopic,
+    reset,
+    step,
+    tryGet,
+  }
+
+  UNSAFE_internals.worlds.push(world)
 
   return world
 }

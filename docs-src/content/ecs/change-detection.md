@@ -3,30 +3,23 @@ title = "Change Detection"
 weight = 9
 +++
 
-Javelin implements a very basic change detection algorithm using [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) that can observe deeply nested changes made to components.
+Change detection is very difficult to do performantly. Javelin does not currently implement a change detection algorithm that automatically watches component mutations. The only way to fit in potentially hundreds of thousands of tracked changes per tick is to write changes to a cache and decide what to do with them later.
 
-Change detection is very useful, but difficult to do performantly; therefore, **components are not observed by default** to achieve good baseline performance.
+## Tracking Changes
 
-## Techniques
-
-The `world.getObserved` method returns a copy of a component that will notify the world when its data changes. It's important to remember to use this method when you want to use one of the change detection techniques outlined below. Bugs can arise in your game when you expect a component to be observed but you forgot to manipulate an observed copy.
-
-### Observing
-
-If you want to know exactly what changes were made to a component during the current tick, use `world.getComponentMutations`. This method returns a flattened array of changes made to a component. Take the following example:
+`@javelin/ecs` exports a function named `observe` which provides the means to track changes made to a component. `observe` accepts a component and returns a Proxy instance. This proxy will intercept any mutations made to any of a component's supported data structures, inlcuding structs, objects, arrays, sets, and maps.
 
 ```ts
-for (const [entity, position, input] of queries.vehicles) {
-  const observedPosition = world.getObserved(position)
-
-  observedPosition.x = 2
-  observedPosition.y = 3
-  observedPosition.extra.asleep = true
-
-  world.getComponentMutations(position) // -> ["x", 2, "y", 3, "extra.asleep", true]
-}
+import { component, observe } from "@javelin/ecs"
+const position = component(Position)
+const positionObserved = observe(position)
 ```
 
-## Networking
+In the above example, `positionObserved` is a proxy which behaves identically to the original component. When the component is modified, Javelin will store the corresponding operations in an internal cache.
 
-`@javelin/net` uses this change detection algorithm to optimize packet size by only including the component data that changed during the previous tick in network messages. This means that changes made to unobserved components will not be sent to clients.
+```ts
+positionObserved.x = 1
+positionObserved.y = 2
+```
+
+The only immediate use for `observe` is in conjunction with `@javelin/net` to serialize patches to be sent over the network. At a later time, you will be able to produce your own patches and apply them to other components. This eventual feature provide the means to write code which implicitly keep multiple components in sync.

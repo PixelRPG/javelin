@@ -1,13 +1,15 @@
 {
   "name": "@javelin/hrtime-loop",
-  "version": "0.22.0",
-  "main": "dist/index.js",
+  "version": "1.0.0-alpha.4",
   "license": "MIT",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
   "scripts": {
-    "clear": "rimraf dist",
+    "clear": "rimraf *.tsbuildinfo && rimraf dist",
     "perf": "node ./perf/index.js",
-    "build": "tsc",
-    "prepare": "yarn build"
+    "build": "tsc -b && tsc -b tsconfig.cjs.json",
+    "prepare": "yarn run clean && yarn build"
   },
   "files": [
     "dist"
@@ -20,10 +22,8 @@
     "high",
     "resolution"
   ],
-  "gitHead": "084d65218a12efbb32ea2b22e0f8e1812acb7d7e",
   "devDependencies": {
     "@types/node": "^16.11.3",
-    "rimraf": "^3.0.2",
     "typescript": "^4.4.4"
   }
 }

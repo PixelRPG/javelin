@@ -1,70 +1,38 @@
 # `@javelin/net`
 
-Networking utilities for Javelin ECS.
+Networking protocol and utilities for Javelin ECS.
 
-## Message Producer
+## Overview
 
-Produce unreliable and reliable Javelin network protocol messages for a world.
-
-- [maxUpdateSize=10](https://youtu.be/_mPzpv47zCg)
-- [maxUpdateSize=100](https://youtu.be/718N4cmX_rY)
-- [maxUpdateSize=1000](https://youtu.be/7W5L6WTksLY)
-
-### Usage
+Define schema using specialized data types.
 
 ```ts
-import { createWorld } from "@javelin/ecs"
-import { createMessageProducer } from "@javelin/net"
-
-const world = createWorld({ ... })
-const messageProducer = createMessageProducer({
-  components: [
-    // send components reliably when they change
-    { type: Health },
-    // send components unreliably by specifying a priority
-    { type: Position, priority: 1 },
-  ],
-  // send unreliable updates 30 times a second
-  updateInterval: (1 / 30) * 1000,
-  // send a maximum of 1000 components per unreliable update
-  updateSize: 1000,
-})
-
-const onClientConnect = client =>
-  // send initial messages to new clients over reliable channel
-  client.sendReliable(messageProducer.getInitialMessages(world))
-
-const loop = () => {
-  world.tick()
-
-  const reliable = messageProducer.getReliableMessages(world)
-  const unreliable = messageProducer.getUnreliableMessages(world)
-
-  for (const client of clients) {
-    client.sendReliable(reliable)
-    client.sendUnreliable(unreliable)
-  }
+const Body = {
+  collisionMask: uint8,
+  position: {
+    x: float64,
+    y: float64,
+  },
 }
 ```
 
-## Message Handler
-
-Apply Javelin network protocol messages to a world.
-
-### Usage
+Serialize ECS operations and data into `ArrayBuffer`s for transport from server->client.
 
 ```ts
-import { createWorld } from "@javelin/ecs"
-import { createMessageHandler } from "@javelin/net"
-
-const messageHandler = createMessageHandler()
-const world = createWorld({
-  systems: [messageHandler.system],
-})
-
-const client = await server.connect()
-
-// apply remote messages to local world next tick
-client.reliable.onMessage(messageHandler.push)
-client.unreliable.onMessage(messageHandler.push)
+const producer = createMessageProducer()
+producer.attach(entity, body)
+producer.detach(entity, spectate)
+socket.send(producer.take())
 ```
+
+Deserialize and apply messages on the client.
+
+```ts
+const handler = createMessageHandler()
+world.addSystem(handler.system)
+socket.on("message", event => handler.push(event.data))
+```
+
+## Docs
+
+Read the [networking docs](https://javelin.games/networking/) to get started.

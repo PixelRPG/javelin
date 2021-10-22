@@ -1,261 +1,220 @@
 import {
-  Component,
+  $flat,
+  $kind,
+  assert,
+  CollatedNode,
+  FieldKind,
+  isPrimitiveField,
+  isSchema,
   mutableEmpty,
-  System,
-  World,
-  WorldOp,
-  WorldOpType,
-} from "@javelin/ecs"
+} from "@javelin/core"
 import {
-  JavelinMessage,
-  JavelinMessageType,
-  Update,
-  UpdateUnreliable,
-} from "./protocol"
+  $type,
+  Component,
+  createEffect,
+  Entity,
+  getFieldValue,
+  ComponentMetadata,
+  World,
+} from "@javelin/ecs"
+import * as Pack from "@javelin/pack"
+import { Cursor } from "@javelin/pack"
+import { MessagePartKind } from "./message"
+import { decodeModel } from "./model"
 
-export type MessageHandler = {
-  handleUnreliableUpdate(message: UpdateUnreliable, world: World): void
-  getLocalEntity(remoteEntity: number): number
-  messages: ReadonlyArray<JavelinMessage>
-  push(message: JavelinMessage): void
-  system: System<unknown>
-  tryGetLocalEntity(remoteEntity: number): number | null
-}
-
-export type MessageHandlerOptions = {
-  processUnreliableUpdates?(updates: UpdateUnreliable[], world: World): unknown
-}
-
-export function createMessageHandler(
-  options: MessageHandlerOptions = {},
-): MessageHandler {
-  const messagesReliable: JavelinMessage[] = []
-  const messagesUnreliable: UpdateUnreliable[] = []
-  const remoteToLocal = new Map<number, number>()
-  const toStopTracking = new Set<number>()
-
-  function handleOps(ops: WorldOp[], isLocal: boolean, world: World) {
-    if (!isLocal) {
-      let i = 0
-
-      while (i < ops.length) {
-        const op = ops[i]
-
-        let local: number
-
-        if (op[0] === WorldOpType.Spawn) {
-          local = world.reserve()
-          remoteToLocal.set(op[1], local)
+export const createMessageHandler = (world: World) => {
+  let model: Pack.ModelEnhanced
+  const state = { updated: new Set<number>() }
+  const cursor = { offset: 0 }
+  const entities = new Map<number, number>()
+  const traverse: (number | string)[] = []
+  const messages: ArrayBuffer[] = []
+  function decodeModelPart(dataView: DataView, end: number, cursor: Cursor) {
+    model = Pack.enhanceModel(
+      decodeModel(dataView, cursor, end - cursor.offset),
+    )
+  }
+  function findOrCreateLocalEntity(entityRemote: Entity) {
+    let entityLocal = entities.get(entityRemote)
+    if (entityLocal === undefined) {
+      entityLocal = world.create()
+      entities.set(entityRemote, entityLocal)
+    }
+    return entityLocal
+  }
+  function decodeAttachPart(dataView: DataView, end: number, cursor: Cursor) {
+    const { buffer } = dataView
+    while (cursor.offset < end) {
+      const toAttach: Component[] = []
+      const entityRemote = Pack.read(dataView, Pack.uint32, cursor)
+      const entityLocal = findOrCreateLocalEntity(entityRemote)
+      const count = Pack.read(dataView, Pack.uint8, cursor)
+      for (let i = 0; i < count; i++) {
+        const schemaId = Pack.read(dataView, Pack.uint8, cursor)
+        let local: Component | null = null
+        try {
+          local = world.storage.getComponentBySchemaId(entityLocal, schemaId)
+        } catch {}
+        if (local === null) {
+          const remote = Pack.decode<Component>(buffer, model[schemaId], cursor)
+          ;(remote as ComponentMetadata)[$type] = schemaId
+          toAttach.push(remote)
         } else {
-          const remote = op[1]
-          local = getLocalEntity(remote)
-
-          if (op[0] === WorldOpType.Destroy) {
-            toStopTracking.add(remote)
+          Pack.decode(buffer, model[schemaId], cursor, local)
+        }
+      }
+      if (toAttach.length > 0) {
+        world.attachImmediate(entityLocal, toAttach)
+      }
+      state.updated.add(entityLocal)
+    }
+  }
+  function decodeSnapshotPart(dataView: DataView, end: number, cursor: Cursor) {
+    const { buffer } = dataView
+    while (cursor.offset < end) {
+      const entityRemote = Pack.read(dataView, Pack.uint32, cursor)
+      const entityLocal = findOrCreateLocalEntity(entityRemote)
+      const count = Pack.read(dataView, Pack.uint8, cursor)
+      for (let i = 0; i < count; i++) {
+        const schemaId = Pack.read(dataView, Pack.uint8, cursor)
+        let component: Component | null = null
+        try {
+          component = world.storage.getComponentBySchemaId(
+            entityLocal,
+            schemaId,
+          )
+        } catch {}
+        Pack.decode(buffer, model[schemaId], cursor, component ?? undefined)
+      }
+      state.updated.add(entityLocal)
+    }
+  }
+  function decodePatchPart(dataView: DataView, end: number, cursor: Cursor) {
+    while (cursor.offset < end) {
+      const entityRemote = Pack.read(dataView, Pack.uint32, cursor)
+      const entityLocal = findOrCreateLocalEntity(entityRemote)
+      const schemaId = Pack.read(dataView, Pack.uint8, cursor)
+      let component: Component | null
+      try {
+        component = world.storage.getComponentBySchemaId(entityLocal, schemaId)
+      } catch {
+        component = null
+      }
+      const total = Pack.read(dataView, Pack.uint8, cursor)
+      const flat = model[$flat][schemaId]
+      for (let i = 0; i < total; i++) {
+        const node = flat[Pack.read(dataView, Pack.uint8, cursor)]
+        const traverseLength = Pack.read(dataView, Pack.uint8, cursor)
+        mutableEmpty(traverse)
+        for (let j = 0; j < traverseLength; j++) {
+          traverse.push(
+            Pack.read(dataView, node.traverse[j] as Pack.ByteView, cursor) as
+              | number
+              | string,
+          )
+        }
+        const object = component
+          ? (getFieldValue(flat[0], component!, node.id, traverse) as Record<
+              string,
+              unknown
+            >)
+          : null
+        const size = Pack.read(dataView, Pack.uint8, cursor)
+        if (isSchema(node)) {
+          for (let j = 0; j < size; j++) {
+            const fieldId = Pack.read(dataView, Pack.uint8, cursor)
+            const field = flat[fieldId]
+            const key = node.keysByFieldId[fieldId]
+            const value = isPrimitiveField(field)
+              ? Pack.read(dataView, field, cursor)
+              : Pack.decode(dataView.buffer, field)
+            if (object !== null) object[key] = value
+          }
+        } else {
+          assert("element" in node)
+          const element = node.element as CollatedNode<Pack.ByteView>
+          const primitive = isPrimitiveField(element)
+          switch (node[$kind]) {
+            case FieldKind.Array:
+              for (let j = 0; j < size; j++) {
+                const index = Pack.read(dataView, Pack.uint16, cursor)
+                const value = primitive
+                  ? Pack.read(dataView, element as Pack.ByteView, cursor)
+                  : Pack.decode(dataView.buffer, element, cursor)
+                if (object !== null) object[index] = value
+              }
+              break
           }
         }
-
-        i++
-
-        op[1] = local
+      }
+      state.updated.add(entityLocal)
+    }
+  }
+  function decodeDetachPart(dataView: DataView, end: number, cursor: Cursor) {
+    while (cursor.offset < end) {
+      const schemaIds: number[] = []
+      const entityRemote = Pack.read(dataView, Pack.uint32, cursor)
+      const entityLocal = findOrCreateLocalEntity(entityRemote)
+      const count = Pack.read(dataView, Pack.uint8, cursor)
+      for (let i = 0; i < count; i++) {
+        const schemaId = Pack.read(dataView, Pack.uint8, cursor)
+        schemaIds.push(schemaId)
+      }
+      world.detachImmediate(entityLocal, schemaIds)
+    }
+  }
+  function decodeDestroyPart(dataView: DataView, end: number, cursor: Cursor) {
+    while (cursor.offset < end) {
+      const entityRemote = Pack.read(dataView, Pack.uint32, cursor)
+      const entityLocal = findOrCreateLocalEntity(entityRemote)
+      world.destroyImmediate(entityLocal)
+    }
+  }
+  function decode(message: ArrayBuffer) {
+    cursor.offset = 0
+    const messageLength = message.byteLength
+    const dataView = new DataView(message)
+    while (cursor.offset < messageLength) {
+      const partKind = Pack.read(dataView, Pack.uint8, cursor)
+      const partLength = Pack.read(dataView, Pack.uint32, cursor)
+      const partEnd = cursor.offset + partLength
+      switch (partKind) {
+        case MessagePartKind.Model:
+          decodeModelPart(dataView, partEnd, cursor)
+          break
+        case MessagePartKind.Attach:
+          decodeAttachPart(dataView, partEnd, cursor)
+          break
+        case MessagePartKind.Snapshot:
+          decodeSnapshotPart(dataView, partEnd, cursor)
+          break
+        case MessagePartKind.Patch:
+          decodePatchPart(dataView, partEnd, cursor)
+          break
+        case MessagePartKind.Detach:
+          decodeDetachPart(dataView, partEnd, cursor)
+          break
+        case MessagePartKind.Destroy:
+          decodeDestroyPart(dataView, partEnd, cursor)
+          break
       }
     }
-
-    toStopTracking.forEach(entity => remoteToLocal.delete(entity))
-    toStopTracking.clear()
-
-    world.applyOps(ops)
   }
-
-  const tmpComponentsToUpsert: Component[] = []
-
-  function handleUnreliableUpdate(update: UpdateUnreliable, world: World) {
-    const { storage } = world
-    const [, isLocal] = update
-
-    let entity: number | null = null
-
-    for (let i = 3; i < update.length; i++) {
-      const value = update[i]
-      const valueIsEntity = typeof value === "number"
-      const valueIsFinalComponent = i === update.length - 1
-
-      if (!valueIsEntity) {
-        tmpComponentsToUpsert.push(value as Component)
-      }
-
-      if (
-        // We are visiting a local entity.
-        entity !== null &&
-        // We are at the last component in the update.
-        (valueIsFinalComponent ||
-          // We are visiting a new entity.
-          valueIsEntity)
-      ) {
-        try {
-          storage.upsert(entity, tmpComponentsToUpsert)
-        } catch (err) {
-          // Update failed, potentially due to a race condition between reliable
-          // and unreliable channels.
-        }
-
-        mutableEmpty(tmpComponentsToUpsert)
-      }
-
-      if (valueIsEntity) {
-        // Attempt to locate local counterpart of remote entity.
-        entity = isLocal
-          ? (value as number)
-          : tryGetLocalEntity(value as number)
-      }
+  const push = (message: ArrayBuffer) => messages.unshift(message)
+  const system = () => {
+    let message: ArrayBuffer | undefined
+    state.updated.clear()
+    while ((message = messages.pop())) {
+      decode(message)
     }
   }
-
-  function handleReliableUpdate(update: Update, world: World) {
-    const [, isLocal] = update
-    let i = 5
-    let entity: undefined | number = isLocal
-      ? (update[3] as number)
-      : (remoteToLocal.get(update[3] as number) as number)
-    let componentType: null | number = update[4] as number
-
-    if (typeof entity !== "number") {
-      return
-    }
-
-    while (true) {
-      if (entity !== undefined && componentType !== null) {
-        const path = update[i] as string
-        const value = update[i + 1] as unknown
-
-        try {
-          world.patch(entity, componentType, path, value)
-        } catch {
-          // Entity does not exist.
-        }
-      }
-
-      const maybeNextEntity = update[i + 2]
-      const maybeNextComponentType = update[i + 3]
-
-      if (
-        typeof maybeNextEntity === "number" &&
-        typeof maybeNextComponentType === "number"
-      ) {
-        const local = isLocal
-          ? maybeNextEntity
-          : remoteToLocal.get(maybeNextEntity)
-
-        if (local === undefined) {
-          entity = undefined
-          componentType = null
-          // move forward 2 indices to begin the skip
-          i += 2
-        } else {
-          entity = local
-          componentType = maybeNextComponentType
-          // move forward 4 indices since we have already captured the entity and component type
-          i += 4
-        }
-
-        continue
-      }
-
-      if (
-        maybeNextEntity === undefined ||
-        maybeNextComponentType === undefined
-      ) {
-        break
-      }
-
-      i += 2
-    }
-  }
-
-  function getLocalEntity(opOrComponent: WorldOp | Component | number) {
-    let remote: number
-
-    if (typeof opOrComponent === "number") {
-      remote = opOrComponent
-    } else {
-      remote = Array.isArray(opOrComponent)
-        ? opOrComponent[1]
-        : opOrComponent._tid
-    }
-
-    const local = remoteToLocal.get(remote)
-
-    if (typeof local !== "number") {
-      throw new Error(
-        `Could not find local counterpart for remote entity ${remote}.`,
-      )
-    }
-
-    return local
-  }
-
-  function tryGetLocalEntity(opOrComponent: WorldOp | Component | number) {
-    try {
-      return getLocalEntity(opOrComponent)
-    } catch {
-      return null
-    }
-  }
-
-  function handleSpawn(components: Component[], world: World) {
-    world.spawn(...components)
-  }
-
-  function applyMessage(message: JavelinMessage, world: World) {
-    switch (message[0]) {
-      case JavelinMessageType.Ops:
-        handleOps(message[1], message[2], world)
-        break
-      case JavelinMessageType.Update:
-        handleReliableUpdate(message, world)
-        break
-      case JavelinMessageType.Spawn:
-        handleSpawn(message[1], world)
-        break
-    }
-  }
-
-  const defaultProcessUnreliableUpdates = (
-    messagesUnreliable: UpdateUnreliable[],
-    world: World,
-  ) => {
-    for (let i = 0; i < messagesUnreliable.length; i++) {
-      handleUnreliableUpdate(messagesUnreliable[i], world)
-    }
-  }
-
-  const processUnreliableUpdates =
-    options.processUnreliableUpdates || defaultProcessUnreliableUpdates
-
-  function push(message: JavelinMessage) {
-    ;(message[0] === JavelinMessageType.UpdateUnreliable
-      ? messagesUnreliable
-      : messagesReliable
-    ).push(message)
-  }
-
-  function system(world: World) {
-    for (let i = 0; i < messagesReliable.length; i++) {
-      applyMessage(messagesReliable[i], world)
-    }
-
-    processUnreliableUpdates(messagesUnreliable, world)
-
-    mutableEmpty(messagesReliable)
-    mutableEmpty(messagesUnreliable)
-  }
+  const useInfo = createEffect(() => () => state, {
+    shared: true,
+  })
 
   return {
-    handleUnreliableUpdate,
-    getLocalEntity,
-    messages: messagesReliable,
     push,
     system,
-    tryGetLocalEntity,
+    useInfo,
   }
 }

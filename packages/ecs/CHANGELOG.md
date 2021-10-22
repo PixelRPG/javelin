@@ -1,64 +1,41 @@
-# Change Log
+# @javelin/ecs
 
-All notable changes to this project will be documented in this file.
-See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+## 1.0.0-alpha.13
 
-# [0.22.0](https://github.com/3mcd/javelin/compare/v0.21.2...v0.22.0) (2021-04-15)
+### Patch Changes
 
-**Note:** Version bump only for package @javelin/ecs
+- ensure world.tryGet never throws
 
+## 1.0.0-alpha.12
 
+### Patch Changes
 
+- Force publishing new version to fix workspace dependencies
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.12
+  - @javelin/isomorphic-utils@1.0.0-alpha.12
 
+## 1.0.0-alpha.10
 
-## [0.21.2](https://github.com/3mcd/javelin/compare/v0.21.1...v0.21.2) (2021-03-25)
+### Patch Changes
 
+- Improved generic type parameters and fixed a couple of compatibility errors. Javelin should now work with latest Node 12 versions. Also fixed issue with Webpack with introduction of new isomorphic-utils package.
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.10
+  - @javelin/isomorphic-utils@1.0.0-alpha.10
 
-### Bug Fixes
+## 1.0.0-alpha.9
 
-* trigger types and include existing entities/components ([#155](https://github.com/3mcd/javelin/issues/155)) ([5c3ba3d](https://github.com/3mcd/javelin/commit/5c3ba3d8253c42b2431942f461d7d8742a8bec27))
+### Patch Changes
 
+- A few minor API tweaks and performance improvements to priority accumulator
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.9
 
+## 1.0.0-alpha.8
 
+### Patch Changes
 
-
-## [0.21.1](https://github.com/3mcd/javelin/compare/v0.21.0...v0.21.1) (2021-03-24)
-
-
-### Bug Fixes
-
-* ensure type signature has ascending order ([dbfa6d4](https://github.com/3mcd/javelin/commit/dbfa6d478de9e585f97de6bc23351a2bb25f1e63))
-
-
-
-
-
-# [0.21.0](https://github.com/3mcd/javelin/compare/v0.20.0...v0.21.0) (2021-03-24)
-
-
-### Bug Fixes
-
-* fix tests ([debfc16](https://github.com/3mcd/javelin/commit/debfc16a283260d318c4a21bc101065e4c90c5f6))
-* use WeakMap for system ids ([8982d44](https://github.com/3mcd/javelin/commit/8982d44850ce9f1374b977ba04beccf9aa5bd1bb))
-* **world:** assign systems auto-incrementing unique ids ([#144](https://github.com/3mcd/javelin/issues/144)) ([861afcb](https://github.com/3mcd/javelin/commit/861afcb61e459c1dcbfd81bfee939939a264b270))
-
-
-### Features
-
-* query improvements, monitors, triggers and not filters ([#149](https://github.com/3mcd/javelin/issues/149)) ([9f7e45a](https://github.com/3mcd/javelin/commit/9f7e45a9d6ee42b46f0f537e8f798c7c70b34388))
-* **pack:** add pack lib ([#146](https://github.com/3mcd/javelin/issues/146)) ([d8ffb52](https://github.com/3mcd/javelin/commit/d8ffb527a097b431e0a0e7303539c3fece284213))
-* world.snapshot ([#145](https://github.com/3mcd/javelin/issues/145)) ([32b7b53](https://github.com/3mcd/javelin/commit/32b7b533e061a62343d6532281949bd8db5ea602))
-
-
-
-
-
-# [0.20.0](https://github.com/3mcd/javelin/compare/v0.19.4...v0.20.0) (2021-03-04)
-
-
-### Features
-
-* add effects lib and fix global effect bug ([#142](https://github.com/3mcd/javelin/issues/142)) ([337c8ba](https://github.com/3mcd/javelin/commit/337c8bad679eb15465bdebdadcecc63d29950db8))
-* fix request effect and tests ([1c35e62](https://github.com/3mcd/javelin/commit/1c35e620c00a14f71e433a60fb3fc34ceb53051d))
-* merge effects package into ecs; update examples ([099a9d7](https://github.com/3mcd/javelin/commit/099a9d79e1064016b5b6752e49dbdf4065c0b27c))
-* world.reset ([#135](https://github.com/3mcd/javelin/issues/135)) ([756aeb4](https://github.com/3mcd/javelin/commit/756aeb4ac7ffa0be09a5d4193b554e9332b33776))
+- This release renames the effect option `global` to `shared`, and fixes a bug in `MessageProducer` where removed components were recreated on the client via update operations.
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.8

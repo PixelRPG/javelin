@@ -1,15 +1,15 @@
 {
   "name": "@javelin/pack",
-  "version": "0.22.0",
+  "version": "1.0.0-alpha.12",
+  "license": "MIT",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
-  "browser": "dist/javelin-pack.bundle.js",
-  "license": "MIT",
+  "types": "dist/esm/index.d.ts",
   "scripts": {
-    "clear": "rimraf dist",
+    "clean": "rimraf *.tsbuildinfo && rimraf dist",
     "perf": "yarn build && node perf/index.js",
-    "build": "tsc --project tsconfig.json && tsc --project tsconfig.cjs.json && rollup -c",
-    "prepare": "yarn build"
+    "build": "tsc -b && tsc -b tsconfig.cjs.json",
+    "prepare": "yarn run clean && yarn run build"
   },
   "files": [
     "dist"
@@ -23,13 +23,12 @@
     "multiplayer",
     "networking"
   ],
-  "gitHead": "084d65218a12efbb32ea2b22e0f8e1812acb7d7e",
   "devDependencies": {
     "@msgpack/msgpack": "^2.7.1",
-    "@rollup/plugin-node-resolve": "^13.0.6",
     "rimraf": "^3.0.2",
-    "rollup": "^2.58.0",
-    "rollup-plugin-terser": "^7.0.2",
     "typescript": "^4.4.4"
+  },
+  "dependencies": {
+    "@javelin/core": "workspace:*"
   }
 }

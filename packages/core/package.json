@@ -1,0 +1,28 @@
+{
+  "name": "@javelin/core",
+  "version": "1.0.0-alpha.12",
+  "license": "MIT",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "scripts": {
+    "clean": "rm -f *.tsbuildinfo && rm -rf dist",
+    "build": "tsc -b && tsc -b tsconfig.cjs.json",
+    "prepare": "yarn run clean && yarn run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "serialize",
+    "binary",
+    "udp",
+    "game",
+    "mog",
+    "multiplayer",
+    "networking"
+  ],
+  "devDependencies": {
+    "typescript": "^4.4.4"
+  }
+}

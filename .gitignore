@@ -118,5 +118,7 @@ zola
 !.yarn/sdks
 !.yarn/versions
 .pnp.*
+
 # Ignore yarn lock to use this as a submodule in other yarn 2 workspaces
 yarn.lock
+docs-src/public

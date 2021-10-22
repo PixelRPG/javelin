@@ -1,46 +1,32 @@
-import { createSignal } from "../signal"
 import { World } from "../world"
 import { createStorage } from "./storage"
 
-export const createWorld = jest.fn(
-  (): World => {
-    let e = 0
-    return {
-      addSystem: jest.fn(),
-      addTopic: jest.fn(),
-      applyOps: jest.fn(),
-      attach: jest.fn(),
-      component: jest.fn(),
-      componentTypes: [],
-      destroy: jest.fn(),
-      detach: jest.fn(),
-      get: jest.fn(),
-      getObserved: jest.fn(),
-      has: jest.fn(),
-      id: 1,
-      isComponentChanged: jest.fn(),
-      ops: [],
-      patch: jest.fn(),
-      removeSystem: jest.fn(),
-      removeTopic: jest.fn(),
-      reserve: jest.fn(() => e++),
-      reset: jest.fn(),
-      snapshot: jest.fn(),
-      spawn: jest.fn(() => e++),
-      state: {
-        currentTick: 0,
-        currentTickData: null,
-        currentSystem: 0,
-      },
-      storage: createStorage(),
-      tick: jest.fn(),
-      tryGet: jest.fn(),
-      attached: createSignal(),
-      detached: createSignal(),
-      spawned: createSignal(),
-      destroyed: createSignal(),
-    }
-  },
-)
+export const createWorld = jest.fn((): World => {
+  let e = 0
+  return {
+    id: 1,
+    latestTick: 0,
+    latestTickData: null,
+    latestSystemId: 0,
+    storage: createStorage(),
+    addSystem: jest.fn(),
+    addTopic: jest.fn(),
+    attach: jest.fn(),
+    attachImmediate: jest.fn(),
+    destroy: jest.fn(),
+    destroyImmediate: jest.fn(),
+    detach: jest.fn(),
+    detachImmediate: jest.fn(),
+    get: jest.fn(),
+    has: jest.fn(),
+    removeSystem: jest.fn(),
+    removeTopic: jest.fn(),
+    reset: jest.fn(),
+    createSnapshot: jest.fn(),
+    create: jest.fn(() => e++),
+    step: jest.fn(),
+    tryGet: jest.fn(),
+  }
+})
 
-export let __CURRENT_WORLD__ = null
+export let currentWorldId = null

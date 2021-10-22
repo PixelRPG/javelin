@@ -1,6 +1,6 @@
-import { globals } from "./internal/globals"
-import { World } from "./world"
 import { createEffect } from "./effect"
+import { UNSAFE_internals } from "./internal"
+import { World } from "./world"
 
 jest.setTimeout(100)
 
@@ -10,17 +10,15 @@ function flushPromises() {
 }
 
 describe("createEffect", () => {
-  const reset = (currentTick = 0, currentWorld = 0, currentSystem = 0) => {
-    globals.__WORLDS__ = [
-      { id: 0, state: { currentTick, currentSystem } } as World,
-      { id: 1, state: { currentTick, currentSystem } } as World,
+  const reset = (latestTick = 0, currentWorld = 0, latestSystemId = 0) => {
+    ;(UNSAFE_internals as any).worlds = [
+      { id: 0, latestTick, latestSystemId } as World,
+      { id: 1, latestTick, latestSystemId } as World,
     ]
-    globals.__CURRENT_WORLD__ = currentWorld
+    UNSAFE_internals.currentWorldId = currentWorld
   }
 
-  beforeEach(() => {
-    reset()
-  })
+  beforeEach(() => reset())
 
   it("executes callback once per effect call", () => {
     const callback = jest.fn()
@@ -120,7 +118,7 @@ describe("createEffect", () => {
         ref = {}
         return () => ref
       },
-      { global: true },
+      { shared: true },
     )
 
     const a = effect()
@@ -141,7 +139,7 @@ describe("createEffect", () => {
 
   it("executes once per tick in global mode", () => {
     const callback = jest.fn()
-    const effect = createEffect(() => callback, { global: true })
+    const effect = createEffect(() => callback, { shared: true })
 
     effect()
     effect()
@@ -207,7 +205,7 @@ describe("createEffect", () => {
   it("balances global locks with async locks", async () => {
     const callback = jest.fn(() => Promise.resolve())
     const effect = createEffect(() => callback, {
-      global: true,
+      shared: true,
     })
 
     effect()

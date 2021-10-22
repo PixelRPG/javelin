@@ -1,10 +1,11 @@
-import { EffectExecutor, EffectFactory, World } from "../../dist/cjs"
+import { EffectExecutor, EffectFactory } from "../effect"
+import { World } from "../world"
 
-export function createEffect<S, A extends any[]>(
-  factory: EffectFactory<S, A>,
+export function createEffect<S, A extends any[], W extends unknown>(
+  factory: EffectFactory<S, A, W>,
 ): EffectExecutor<S, A> {
   let executor: EffectExecutor<S, A>
-  const reset = (world: World = {} as World) => {
+  const reset = (world: World<W> = {} as World<W>) => {
     executor = factory(world)
   }
   const api = (...args: A) => {

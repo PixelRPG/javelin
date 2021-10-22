@@ -1,47 +1,47 @@
-# Change Log
+# @javelin/net
 
-All notable changes to this project will be documented in this file.
-See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+## 1.0.0-alpha.12
 
-# [0.22.0](https://github.com/3mcd/javelin/compare/v0.21.2...v0.22.0) (2021-04-15)
+### Patch Changes
 
+- Force publishing new version to fix workspace dependencies
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.12
+  - @javelin/ecs@1.0.0-alpha.12
+  - @javelin/pack@1.0.0-alpha.12
 
-### Bug Fixes
+## 1.0.0-alpha.11
 
-* add spawn op type to message producer getReliableMessages ([#159](https://github.com/3mcd/javelin/issues/159)) ([207c5ce](https://github.com/3mcd/javelin/commit/207c5ce0b7036cfe861fa52ae9570dc41485bb6a))
+### Patch Changes
 
+- Improved generic type parameters and fixed a couple of compatibility errors. Javelin should now work with latest Node 12 versions. Also fixed issue with Webpack with introduction of new isomorphic-utils package.
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.10
+  - @javelin/ecs@1.0.0-alpha.10
+  - @javelin/pack@1.0.0-alpha.10
 
+## 1.0.0-alpha.10
 
+### Patch Changes
 
+- A few minor API tweaks and performance improvements to priority accumulator
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.9
+  - @javelin/ecs@1.0.0-alpha.9
+  - @javelin/pack@1.0.0-alpha.9
 
-## [0.21.2](https://github.com/3mcd/javelin/compare/v0.21.1...v0.21.2) (2021-03-25)
+## 1.0.0-alpha.9
 
-**Note:** Version bump only for package @javelin/net
+### Patch Changes
 
+- Fix issue where encoded components were skipped during deserialization causing an out-of-range error.
 
+## 1.0.0-alpha.8
 
+### Patch Changes
 
-
-## [0.21.1](https://github.com/3mcd/javelin/compare/v0.21.0...v0.21.1) (2021-03-24)
-
-**Note:** Version bump only for package @javelin/net
-
-
-
-
-
-# [0.21.0](https://github.com/3mcd/javelin/compare/v0.20.0...v0.21.0) (2021-03-24)
-
-
-### Features
-
-* query improvements, monitors, triggers and not filters ([#149](https://github.com/3mcd/javelin/issues/149)) ([9f7e45a](https://github.com/3mcd/javelin/commit/9f7e45a9d6ee42b46f0f537e8f798c7c70b34388))
-* world.snapshot ([#145](https://github.com/3mcd/javelin/issues/145)) ([32b7b53](https://github.com/3mcd/javelin/commit/32b7b533e061a62343d6532281949bd8db5ea602))
-
-
-
-
-
-# [0.20.0](https://github.com/3mcd/javelin/compare/v0.19.4...v0.20.0) (2021-03-04)
-
-**Note:** Version bump only for package @javelin/net
+- This release renames the effect option `global` to `shared`, and fixes a bug in `MessageProducer` where removed components were recreated on the client via update operations.
+- Updated dependencies [undefined]
+  - @javelin/core@1.0.0-alpha.8
+  - @javelin/ecs@1.0.0-alpha.8
+  - @javelin/pack@1.0.0-alpha.8

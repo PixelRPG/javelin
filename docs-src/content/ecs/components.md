@@ -3,109 +3,87 @@ title = "Components"
 weight = 3
 +++
 
-Most data within a game is stored in components. Components are just plain objects; unremarkable, other than one reserved field: `_tid` — short for type id, a unique integer that is shared between all components of the same kind.
+Most data within a game is stored in components. Components are just plain objects!
 
-The `_tid` field establishes the taxonomy that Javelin uses to store and retrieve components. Take the following example.
+## Schemas
 
-```ts
-const position = { _tid: 0, x: 2, y: 2 }
-const health = { _tid: 0, value: 100 }
-```
+A **schema** is an object that defines the structure of a component. Component structure is expressed using a minimal syntax with only a few rules:
 
-Using the same `_tid` for components with a different shape could result in catastrophic behavior! Just make the types unique:
+1. an object `{}` represents a **struct** – an object with fixed keys
+2. structs are composed of members called **fields**
+3. a field may be a nested struct, a primitive data type, or a complex data type
 
-```ts
-const position = { _tid: 0, ... }
-const health = { _tid: 1, ... }
-```
-
-## Component Types
-
-The `createComponentType` helper is used to define the types of components in your game. Component types make it easy to initialize components from a schema, and components created with a component type are automatically pooled.
+Below is an example of a simple vector schema comprised of two primitive fields:
 
 ```ts
-import { createComponentType, number } from "@javelin/ecs"
+import { number } from "@javelin/ecs"
 
-const Position = createComponentType({
-  type: 1,
-  schema: {
-    x: number,
-    y: number,
-  },
-})
-```
-
-A component type has, at minimum, a type and **schema**, which is discussed below.
-
-### Schema
-
-A component type's schema defines the field names and data types that make up the shape of the component. The schema is used to initialize component instances and reset them when they are detached from an entity.
-
-The schema currently supports the following data types:
-
-
-```
-number  (default = 0)
-boolean (default = false)
-string  (default = "")
-array   (default = [])
-```
-
-A default value for a data type can be specified in the schema by wrapping the data type in an object:
-
-```ts
-schema: {
-  x: { type: number, defaultValue: -1 }
+const Position = {
+  x: number,
+  y: number,
 }
+```
+
+Schema may express components ranging from flat structures with few (or no) properties, to complex objects containing deeply nested structures, like the one found in the example below:
+
+```ts
+import { number, arrayOf } from "@javelin/ecs"
+
+const Inventory = {
+  bags: arrayOf({ items: arrayOf(number) }),
+}
+```
+
+A schema is used to initialize component instances and reset them when they are detached from an entity.
+
+Javelin currently supports the following data types:
+
+| Type    | Helper            | Default Value |
+| ------- | ----------------- | ------------- |
+| Number  | `number`          | `0`           |
+| String  | `string`          | `""`          |
+| Boolean | `boolean`         | `false`       |
+| Array   | `arrayOf(field)`  | `[]`          |
+| Object  | `objectOf(field)` | `{}`          |
+| Set     | `setOf(field)`    | `new Set`     |
+| Map     | `mapOf(field)`    | `new Map`     |
+
+Javelin will automatically assign schemas it encounters for the first time with a unique integer id. If you need to assign a specific id to a schema (e.g., you're synchronizing your component model in a multiplayer game), you can register the schema manually using `registerSchema`:
+
+```ts
+import { registerSchema } from "@javelin/ecs"
+
+registerSchema(Position, 4)
 ```
 
 ### Creating Components
 
-A component is initialized from a component type using `world.component`:
+Components are created using the `component` function.
 
 ```ts
-const position = world.component(Position)
+import { component } from "@javelin/ecs"
 
-position.x // 0
-position.y // 0
+const position = component(Position)
 ```
 
-You may also specify an initializer function for a component type to make component creation easier.
+Components created using `component` are automatically pooled. By default, the pool will initialize 10^3 components for use, and will grow by the same amount when the pool shinks to zero. This may not be ideal for singleton or low-volume components. You may specify the pool size for a single schema when registering the it with `registerSchema`:
 
 ```ts
-const Position = createComponentType({
-  ...
-  initialize(position, x = 0, y = 0) {
-    position.x = x
-    position.y = y
-  },
-})
-
-const position = world.component(
-  Position,
-  10, // x
-  20, // y
-)
-```
-
-### Object Pooling
-
-Components created via a component type are automatically pooled. By default, the pool will initialize 10^3 components for use, and will grow by the same amount when the pool shinks to zero. This may not be ideal, especially for singleton or low-volume components. You can modify the default pool size of all component types by setting the `componentPoolSize` option on the config object passed to `createWorld()`:
-
-```ts
-const world = createWorld({
-  componentPoolSize: 100,
-})
-```
-
-Or, you can specify the pool size for a single component type when registering the it with `world.registerComponentType`:
-
-```ts
-world.registerComponentType(Position, 10000)
+registerSchema(Position, 4, 10000)
 ```
 
 <aside>
   <p>
-    <strong>Tip</strong> — the configured or default pool size will be used if a component type is encountered by <code>world.component()</code> prior to manual registration.
+    <strong>Tip</strong> — the configured or default pool size will be used if a schema is encountered by <code>component()</code> prior to manual registration.
   </p>
 </aside>
+
+### External Objects
+
+You can instruct Javelin to treat a third-pary library object as a component using the `toComponent` method. Simply call `toComponent` with the object and the component schema you want to classify it with:
+
+```ts
+world.attach(entity, toComponent(new Three.Mesh(), Mesh))
+```
+
+`toComponent` does not create a new object, so referential integrity is maintained. There are no restrictions on the types of objects that can be used as components: they can even be sealed or frozen! External components are not pooled.

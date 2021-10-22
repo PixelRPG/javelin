@@ -1,15 +1,10 @@
-export type Type = number[]
+export type Type = ReadonlyArray<number>
 
-export const typeHash = (type: Type) => {
-  let buckets = 97
-  let bucket = type.length % buckets
-  for (let i = 0; i < type.length; i++) {
-    bucket = (bucket + type[i]) % buckets
-  }
-  return bucket
+export function normalizeType(type: Type): Type {
+  return type.slice().sort((a, b) => a - b)
 }
 
-export const typeIsSuperset = (right: Type, left: Type) => {
+export function typeIsSuperset(right: Type, left: Type) {
   let i = 0
   let j = 0
 
