@@ -1,1 +1,1 @@
-export { performance } from "perf_hooks"
+export const performance = window?.performance ? window.performance : require("perf_hooks");
