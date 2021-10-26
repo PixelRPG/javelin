@@ -9,7 +9,7 @@
     "clear": "rimraf *.tsbuildinfo && rimraf dist",
     "perf": "node ./perf/index.js",
     "build": "tsc -b && tsc -b tsconfig.cjs.json",
-    "prepare": "yarn run clean && yarn build"
+    "prepare": "npm run clear && npm run build"
   },
   "files": [
     "dist"
@@ -23,7 +23,7 @@
     "resolution"
   ],
   "devDependencies": {
-    "@types/node": "^16.11.3",
+    "@types/node": "^16.11.6",
     "typescript": "^4.4.4"
   }
 }

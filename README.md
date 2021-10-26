@@ -139,7 +139,7 @@ Packages reference eachother using pnpm workspace aliases and TypeScript project
 ```json
 {
   "dependencies": {
-    "@javelin/core": "workspace:*"
+    "@javelin/core": "^1.0.0-alpha.12"
   }
 }
 ```

@@ -48,7 +48,7 @@ export const useRequest = createEffect(() => {
   return function useRequest(
     url: string | null,
     options: Parameters<typeof fetch>[1],
-    invalidate = previousUrl !== undefined && url !== previousUrl,
+    invalidate: boolean = previousUrl !== undefined && url !== previousUrl,
   ) {
     if (url === null || invalidate) {
       abortController.abort()

@@ -7,8 +7,8 @@
   "types": "dist/esm/index.d.ts",
   "scripts": {
     "clear": "rimraf *.tsbuildinfo && rimraf dist",
-    "perf": "yarn build && node perf/index.js",
-    "prepare": "yarn run clear && yarn build",
+    "perf": "npm build && node perf/index.js",
+    "prepare": "npm run clear && npm run build",
     "build": "tsc -b && tsc -b tsconfig.cjs.json"
   },
   "files": [
@@ -24,14 +24,14 @@
   "gitHead": "084d65218a12efbb32ea2b22e0f8e1812acb7d7e",
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^13.0.6",
-    "@types/node": "^16.11.3",
+    "@types/node": "^16.11.6",
     "rimraf": "^3.0.2",
-    "rollup": "^2.58.0",
+    "rollup": "^2.58.3",
     "rollup-plugin-terser": "^7.0.2",
     "typescript": "^4.4.4"
   },
   "dependencies": {
-    "@javelin/core": "workspace:*",
-    "@javelin/isomorphic-utils": "workspace:*"
+    "@javelin/core": "^1.0.0-alpha.12",
+    "@javelin/isomorphic-utils": "^1.0.0-alpha.12"
   }
 }
